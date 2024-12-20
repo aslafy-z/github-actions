@@ -1,0 +1,24 @@
+name: Run Tests on PR Label
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - labeled
+      - synchronize
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+    name: Test
+    if:  ${{ contains(toJson(github.event.pull_request.labels), 'ok-to-test') }}
+    steps:
+
+    - name: Print
+      run: |
+        cat <<EOF
+        ${{ contains(toJson(github.event.pull_request.labels), 'ok-to-test') }}
+        ${{ toJson(github.event.pull_request.labels) }}
+        EOF
