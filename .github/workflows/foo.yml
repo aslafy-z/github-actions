@@ -15,18 +15,18 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: Test
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-
-
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Use the comment-reaction-approval action
         uses: ./.github/actions/comment-reaction-approval
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
-          hidden-comment-id: "foo"
+          comment-id: "foo"
 
       - name: Print
         run: |

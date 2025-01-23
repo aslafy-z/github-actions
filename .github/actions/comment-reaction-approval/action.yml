@@ -1,5 +1,5 @@
 name: 'Comment Reaction Approval'
-description: 'Creates a comment, waits for reaction from authorized users (writers/admins), and deletes on approval or failure'
+description: 'Advanced comment approval workflow with flexible authorization and reaction handling'
 inputs:
   github-token:
     description: 'GitHub token for API requests'
@@ -9,123 +9,190 @@ inputs:
     required: true
   comment-body:
     description: 'The body of the comment'
-    default: 'Please react with :+1: to approve or :-1: to reject.'
     required: false
-  hidden-comment-id:
+    default: 'Please react with :+1: to approve or :-1: to reject.'
+  comment-id:
     description: 'A unique identifier for finding the comment'
     required: true
+  wait-timeout-seconds:
+    description: 'Time to wait for a reaction in seconds'
+    required: false
+    default: 1800
+  check-interval-seconds:
+    description: 'Interval between reaction checks'
+    required: false
+    default: 30
+  required-approvals:
+    description: 'Number of required approvals to mark as approved'
+    required: false
+    default: 1
+  required-rejections:
+    description: 'Number of required rejections to mark as rejected'
+    required: false
+    default: 1
+  authorized-roles:
+    description: 'Comma-separated list of allowed roles (admin,maintain,push,triage,pull)'
+    required: false
+    default: 'admin,maintain,push'
+
+outputs:
+  approved:
+    description: 'Indicates whether the comment received sufficient approvals'
+    value: ${{ steps.wr.outputs.approved }}
+  rejected:
+    description: 'Indicates whether the comment received sufficient rejections'
+    value: ${{ steps.wr.outputs.rejected }}
+  approval-count:
+    description: 'Number of approvals received'
+    value: ${{ steps.reaction-check.outputs.approval-count }}
+  rejection-count:
+    description: 'Number of rejections received'
+    value: ${{ steps.reaction-check.outputs.rejection-count }}
+  timed_out:
+    description: 'Indicates whether the approval process timed out'
+    value: ${{ steps.qr.outputs.timed_out }}
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
-    - name: Check for existing comment by hidden ID
-      id: check-comment
-      run: |
-        COMMENTS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/${{ inputs.issue-number }}/comments")
+    - name: Find Comment
+      uses: peter-evans/find-comment@v2
+      id: fc
+      with:
+        issue-number: ${{ inputs.issue-number }}
+        comment-author: 'github-actions[bot]'
+        body-includes: '<!-- comment-reaction-approval#${{ inputs.comment-id }} -->'
 
-        EXISTING_COMMENT_ID=$(echo "$COMMENTS" | jq -r ".[] | select(.body | contains(\"comment-reaction-approval#${{ inputs.hidden-comment-id }}\")) | .id")
-
-        if [ "$EXISTING_COMMENT_ID" != "null" ]; then
-          echo "Existing comment found with ID: $EXISTING_COMMENT_ID"
-          echo "comment_id=$EXISTING_COMMENT_ID" >> $GITHUB_ENV
-        else
-          echo "No existing comment found."
-          echo "comment_id=" >> $GITHUB_ENV
-        fi
-      shell: bash
-
-    - name: Delete existing comment if found
-      if: env.comment_id != ''
-      run: |
-        curl -X DELETE -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ env.comment_id }}"
-        echo "Deleted existing comment ID: ${{ env.comment_id }}"
-      shell: bash
+    - name: Delete Existing Comment
+      if: steps.fc.outputs.comment-id != ''
+      uses: actions/github-script@v6
+      env:
+        INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
+      with:
+        script: |
+          github.rest.issues.deleteComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: core.getInput('comment_id', { required: true }),
+          });
 
     - name: Create new comment
-      id: create-comment
+      id: cc
       uses: peter-evans/create-or-update-comment@v4
       with:
         issue-number: ${{ inputs.issue-number }}
         body: |
           ${{ inputs.comment-body }}
 
-          <!-- comment-reaction-approval#${{ inputs.hidden-comment-id }} -->
-        reactions: "+1"
+          <!-- comment-reaction-approval#${{ inputs.comment-id }} -->
+        reactions: "+1,-1"
 
     - name: Wait for reaction
-      id: wait-reaction
-      run: |
-        COMMENT_ID=${{ env.comment_id }}
-        END_TIME=$((SECONDS+600))  # 10-minute timeout
-        while [ $SECONDS -lt $END_TIME ]; do
-          REACTION_COUNT=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}/reactions" \
-            | jq '[.[] | select(.content == "+1")] | length')
+      id: wr
+      uses: actions/github-script@v7
+      env:
+        INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
+        INPUT_REQUIRED_APPROVALS: '${{ inputs.required-approvals }}'
+        INPUT_REQUIRED_REJECTIONS: '${{ inputs.required-rejections }}'
+        INPUT_WAIT_TIMEOUT_SECONDS: '${{ inputs.wait-timeout-seconds }}'
+        INPUT_CHECK_INTERVAL_SECONDS: '${{ inputs.check-interval-seconds }}'
+        INPUT_AUTHORIZED_ROLES: '${{ inputs.authorized-roles }}'
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const commentId = core.getInput('comment_id', { required: true });
+          const requiredApprovals = parseInt(core.getInput('required_approvals', { required: true }), 10);
+          const requiredRejections = parseInt(core.getInput('required_rejections', { required: true }), 10);
+          const waitTimeoutSeconds = parseInt(core.getInput('wait_timeout_seconds', { required: true }), 10);
+          const checkIntervalSeconds = parseInt(core.getInput('check_interval_seconds', { required: true }), 10);
+          const authorizedRoles = core.getInput('authorized_roles', { required: true }).split(',');
 
-          echo "Current reaction count: $REACTION_COUNT"
+          const endTime = Date.now() + (waitTimeoutSeconds * 1000);
 
-          if [ "$REACTION_COUNT" -gt 0 ]; then
-            echo "Reaction received, proceeding."
-            echo "reaction_received=true" >> $GITHUB_ENV
-            exit 0
-          fi
+          async function checkReactions() {
+            try {
+              const { data: collaborators } = await github.rest.repos.listCollaborators({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
 
-          sleep 30  # Check every 30 seconds
-        done
+              const validUsers = collaborators
+                .filter(user => 
+                  authorizedRoles.some(role => 
+                    user.permissions[role.trim()] === true
+                  )
+                )
+                .map(user => user.login);
 
-        echo "No reaction received within the timeout period."
-        echo "reaction_received=false" >> $GITHUB_ENV
-        exit 1
-      shell: bash
+              while (Date.now() < endTime) {
+                const { data: reactions } = await github.rest.reactions.listForIssueComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: commentId,
+                });
 
-    - name: Verify if reaction is from repo admin/writer
-      if: env.reaction_received == 'true'
-      id: verify-user
-      run: |
-        COMMENT_ID=${{ env.comment_id }}
-        REACTIONS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}/reactions")
+                const approvals = reactions.filter(reaction => 
+                  reaction.content === '+1' && validUsers.includes(reaction.user.login)
+                );
 
-        # Get repository collaborators (with write/admin permissions)
-        COLLABORATORS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/collaborators?permission=write" | jq -r '.[].login')
+                const rejections = reactions.filter(reaction => 
+                  reaction.content === '-1' && validUsers.includes(reaction.user.login)
+                );
 
-        COLLABORATORS+=" $(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/collaborators?permission=admin" | jq -r '.[].login')"
+                console.log(`Approvals: ${approvals.length}, Rejections: ${rejections.length}`);
 
-        APPROVED="false"
-        for user in $COLLABORATORS; do
-          if echo "$REACTIONS" | jq -e --arg u "$user" '.[] | select(.user.login == $u)' > /dev/null; then
-            echo "Reaction from authorized user $user detected!"
-            APPROVED="true"
-            break
-          fi
-        done
+                if (rejections.length >= requiredRejections) {
+                  core.setOutput('approved', 'false');
+                  core.setOutput('rejected', 'true');
+                  core.setOutput('approval_count', `${approvals.length}`);
+                  core.setOutput('rejection_count', `${rejections.length}`);
+                  core.setOutput('timed_out', 'false');
+                  console.log('Run rejected');
+                  return;
+                }
 
-        if [ "$APPROVED" == "true" ]; then
-          echo "Reaction approved by an authorized user."
-          echo "approval_status=approved" >> $GITHUB_ENV
-          exit 0
-        else
-          echo "No authorized user reacted. Failing job."
-          echo "approval_status=rejected" >> $GITHUB_ENV
-          exit 1
-        fi
-      shell: bash
+                if (approvals.length >= requiredApprovals) {
+                  core.setOutput('approved', 'true');
+                  core.setOutput('rejected', 'false');
+                  core.setOutput('approval_count', `${approvals.length}`);
+                  core.setOutput('rejection_count', `${rejections.length}`);
+                  core.setOutput('timed_out', 'false');
+                  return;
+                }
 
-    - name: Delete comment after reaction (approval or failure)
-      if: always()
-      run: |
-        curl -X DELETE -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ env.comment_id }}"
-        echo "Deleted comment after completion (approval or failure)."
-      shell: bash
+                await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
+              }
 
-    - name: Final status
-      if: env.approval_status != 'approved'
-      run: |
-        echo "Approval failed or no authorized user reacted."
-        exit 1
-      shell: bash
+              core.setOutput('approved', 'false');
+              core.setOutput('rejected', 'false');
+              core.setOutput('approval_count', '-1');
+              core.setOutput('rejection_count', '-1');
+              core.setOutput('timed_out', 'true');
+              console.log('No reaction received within the timeout period.');
+              return;
+
+            } catch (error) {
+              console.log(`Error: ${error.message}`);
+              core.setOutput('approved', 'false');
+              core.setOutput('rejected', 'false');
+              core.setOutput('approval_count', '-1');
+              core.setOutput('rejection_count', '-1');
+              core.setOutput('timed_out', 'false');
+              core.setFailed(error.message);
+            }
+          }
+
+          await checkReactions();
+
+    - name: Delete Existing Comment
+      if: steps.cc.outputs.comment-id != '' && always()
+      uses: actions/github-script@v6
+      env:
+        INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
+      with:
+        script: |
+          github.rest.issues.deleteComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: core.getInput('comment_id', { required: true }),
+          });
