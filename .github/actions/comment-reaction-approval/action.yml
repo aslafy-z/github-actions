@@ -72,6 +72,11 @@ runs:
           const endTime = Date.now() + (${{ inputs.wait-timeout-seconds }} * 1000);
           
           async function checkReaction() {
+            const { data: collaborators } = await github.rest.repos.listCollaborators({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
             while (Date.now() < endTime) {
               const { data: reactions } = await github.rest.reactions.listForIssueComment({
                 owner: context.repo.owner,
@@ -79,15 +84,7 @@ runs:
                 comment_id: commentId
               });
               
-              const { data: collaborators } = await github.rest.repos.listCollaborators({
-                owner: context.repo.owner,
-                repo: context.repo.repo
-              });
-              
               const validUsers = collaborators.filter(user => user.permissions.admin || user.permissions.push);
-              console.log(`Valid users:`, JSON.stringify(collaborators, null, 2), JSON.stringify(validUsers));
-              console.log(`React:`, JSON.stringify(reactions, null, 2));
-
               const reactionCount = reactions.filter(reaction => 
                 reaction.content === '+1' && 
                 validUsers.some(user => user.login === reaction.user.login)
