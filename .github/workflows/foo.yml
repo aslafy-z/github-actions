@@ -16,12 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     name: Test
     permissions: 
-       pull-requests: write 
+      pull-requests: write 
     steps:
-
-
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Use the comment-reaction-approval action
         uses: ./.github/actions/comment-reaction-approval
