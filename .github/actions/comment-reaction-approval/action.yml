@@ -23,7 +23,11 @@ inputs:
     required: false
     default: 30
   required-approvals:
-    description: 'Number of required approvals to proceed'
+    description: 'Number of required approvals to mark as approved'
+    required: false
+    default: 1
+  required-rejections:
+    description: 'Number of required rejections to mark as rejected'
     required: false
     default: 1
   authorized-roles:
@@ -35,9 +39,15 @@ outputs:
   approved:
     description: 'Indicates whether the comment received sufficient approvals'
     value: ${{ steps.wr.outputs.approved }}
+  rejected:
+    description: 'Indicates whether the comment received sufficient rejections'
+    value: ${{ steps.wr.outputs.rejected }}
   approval-count:
     description: 'Number of approvals received'
     value: ${{ steps.reaction-check.outputs.approval-count }}
+  rejection-count:
+    description: 'Number of rejections received'
+    value: ${{ steps.reaction-check.outputs.rejection-count }}
   timed_out:
     description: 'Indicates whether the approval process timed out'
     value: ${{ steps.qr.outputs.timed_out }}
@@ -83,6 +93,7 @@ runs:
       env:
         INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
         INPUT_REQUIRED_APPROVALS: '${{ inputs.required-approvals }}'
+        INPUT_REQUIRED_REJECTIONS: '${{ inputs.required-rejections }}'
         INPUT_WAIT_TIMEOUT_SECONDS: '${{ inputs.wait-timeout-seconds }}'
         INPUT_CHECK_INTERVAL_SECONDS: '${{ inputs.check-interval-seconds }}'
         INPUT_AUTHORIZED_ROLES: '${{ inputs.authorized-roles }}'
@@ -91,6 +102,7 @@ runs:
         script: |
           const commentId = core.getInput('comment_id', { required: true });
           const requiredApprovals = parseInt(core.getInput('required_approvals', { required: true }), 10);
+          const requiredRejections = parseInt(core.getInput('required_rejections', { required: true }), 10);
           const waitTimeoutSeconds = parseInt(core.getInput('wait_timeout_seconds', { required: true }), 10);
           const checkIntervalSeconds = parseInt(core.getInput('check_interval_seconds', { required: true }), 10);
           const authorizedRoles = core.getInput('authorized_roles', { required: true }).split(',');
@@ -101,8 +113,9 @@ runs:
             try {
               const { data: collaborators } = await github.rest.repos.listCollaborators({
                 owner: context.repo.owner,
-                repo: context.repo.repo
+                repo: context.repo.repo,
               });
+
               const validUsers = collaborators
                 .filter(user => 
                   authorizedRoles.some(role => 
@@ -110,33 +123,65 @@ runs:
                   )
                 )
                 .map(user => user.login);
+
               while (Date.now() < endTime) {
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  comment_id: commentId
+                  comment_id: commentId,
                 });
-                const validReactions = reactions.filter(reaction => 
+
+                const approvals = reactions.filter(reaction => 
                   reaction.content === '+1' && validUsers.includes(reaction.user.login)
                 );
-                console.log(`Current valid reaction count: ${validReactions.length}`);
-                if (validReactions.length >= requiredApprovals) {
+
+                const rejections = reactions.filter(reaction => 
+                  reaction.content === '-1' && validUsers.includes(reaction.user.login)
+                );
+
+                console.log(`Approvals: ${approvals.length}, Rejections: ${rejections.length}`);
+
+                if (rejections.length >= requiredRejections) {
+                  core.setOutput('approved', 'false');
+                  core.setOutput('rejected', 'true');
+                  core.setOutput('approval_count', `${approvals.length}`);
+                  core.setOutput('rejection_count', `${rejections.length}`);
+                  core.setOutput('timed_out', 'false');
+                  console.log('Run rejected');
+                  return;
+                }
+
+                if (approvals.length >= requiredApprovals) {
                   core.setOutput('approved', 'true');
-                  core.setOutput('approval_count', `${validReactions.length}`);
+                  core.setOutput('rejected', 'false');
+                  core.setOutput('approval_count', `${approvals.length}`);
+                  core.setOutput('rejection_count', `${rejections.length}`);
                   core.setOutput('timed_out', 'false');
                   return;
                 }
+
                 await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
               }
-              throw new Error('No reaction received from an admin or writer within the timeout period.');
-            } catch (error) {
-              console.log(error.message);
+
               core.setOutput('approved', 'false');
+              core.setOutput('rejected', 'false');
               core.setOutput('approval_count', '-1');
+              core.setOutput('rejection_count', '-1');
               core.setOutput('timed_out', 'true');
+              console.log('No reaction received within the timeout period.');
+              return;
+
+            } catch (error) {
+              console.log(`Error: ${error.message}`);
+              core.setOutput('approved', 'false');
+              core.setOutput('rejected', 'false');
+              core.setOutput('approval_count', '-1');
+              core.setOutput('rejection_count', '-1');
+              core.setOutput('timed_out', 'false');
               core.setFailed(error.message);
             }
           }
+
           await checkReactions();
 
     - name: Delete Existing Comment
