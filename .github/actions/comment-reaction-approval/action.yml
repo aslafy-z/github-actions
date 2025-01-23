@@ -16,42 +16,29 @@ inputs:
     required: true
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
-    - name: Check for existing comment by hidden ID
-      id: check-comment
-      run: |
-        COMMENTS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/${{ inputs.issue-number }}/comments")
+    - name: Find Comment
+      uses: peter-evans/find-comment@v2
+      id: fc
+      with:
+        issue-number: ${{ inputs.issue-number }}
+        comment-author: 'github-actions[bot]'
+        body-includes: 'comment-reaction-approval#${{ inputs.hidden-comment-id }}'
 
-        # Validate if the response is a valid JSON array
-        if echo "$COMMENTS" | jq -e 'type == "array"' > /dev/null; then
-          EXISTING_COMMENT_ID=$(echo "$COMMENTS" | jq -r '.[] | select(.body | contains("${{ inputs.hidden-comment-id }}")) | .id')
-
-          if [ -n "$EXISTING_COMMENT_ID" ] && [ "$EXISTING_COMMENT_ID" != "null" ]; then
-            echo "Existing comment found with ID: $EXISTING_COMMENT_ID"
-            echo "comment_id=$EXISTING_COMMENT_ID" >> $GITHUB_ENV
-          else
-            echo "No existing comment found."
-            echo "comment_id=" >> $GITHUB_ENV
-          fi
-        else
-          echo "Error: GitHub API did not return a valid JSON array."
-          echo "$COMMENTS"
-          echo "comment_id=" >> $GITHUB_ENV
-        fi
-      shell: bash
-
-    - name: Delete existing comment if found
-      if: env.comment_id != ''
-      run: |
-        curl -X DELETE -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ env.comment_id }}"
-        echo "Deleted existing comment ID: ${{ env.comment_id }}"
-      shell: bash
+    - name: Delete Existing Comment
+      if: steps.fc.outputs.comment-id != ''
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.deleteComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: ${{ steps.fc.outputs.comment-id }}
+          })
 
     - name: Create new comment
-      id: create-comment
+      id: cc
       uses: peter-evans/create-or-update-comment@v4
       with:
         issue-number: ${{ inputs.issue-number }}
@@ -63,76 +50,59 @@ runs:
 
     - name: Wait for reaction
       id: wait-reaction
-      run: |
-        COMMENT_ID=${{ env.comment_id }}
-        END_TIME=$((SECONDS+600))  # 10-minute timeout
-        while [ $SECONDS -lt $END_TIME ]; do
-          REACTION_COUNT=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}/reactions" \
-            | jq '[.[] | select(.content == "+1")] | length')
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const commentId = '${{ steps.cc.outputs.comment-id }}';
+          const endTime = Date.now() + 1800000;  // 30-minute timeout
+          
+          async function checkReaction() {
+            while (Date.now() < endTime) {
+              const { data: reactions } = await github.rest.reactions.listForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: commentId
+              });
+              
+              const { data: collaborators } = await github.rest.repos.listCollaborators({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              
+              const allowedRoles = ['admin', 'write'];
+              const validUsers = collaborators.filter(user => allowedRoles.includes(user.permissions.admin || user.permissions.push));
+              
+              const reactionCount = reactions.filter(reaction => 
+                reaction.content === '+1' && 
+                validUsers.some(user => user.login === reaction.user.login)
+              ).length;
+              
+              console.log(`Current reaction count from admins/writers: ${reactionCount}`);
+              
+              if (reactionCount > 0) {
+                console.log('Reaction received from an admin or writer, proceeding.');
+                core.exportVariable('reaction_received', 'true');
+                return;
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 30000)); // Check every 30 seconds
+            }
+            
+            console.log('No reaction received from an admin or writer within the timeout period.');
+            core.exportVariable('reaction_received', 'false');
+            core.setFailed('No reaction received from an admin or writer within the timeout period.');
+          }
+          
+          await checkReaction();
 
-          echo "Current reaction count: $REACTION_COUNT"
-
-          if [ "$REACTION_COUNT" -gt 0 ]; then
-            echo "Reaction received, proceeding."
-            echo "reaction_received=true" >> $GITHUB_ENV
-            exit 0
-          fi
-
-          sleep 30  # Check every 30 seconds
-        done
-
-        echo "No reaction received within the timeout period."
-        echo "reaction_received=false" >> $GITHUB_ENV
-        exit 1
-      shell: bash
-
-    - name: Verify if reaction is from repo admin/writer
-      if: env.reaction_received == 'true'
-      id: verify-user
-      run: |
-        COMMENT_ID=${{ env.comment_id }}
-        REACTIONS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}/reactions")
-
-        # Get repository collaborators (with write/admin permissions)
-        COLLABORATORS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/collaborators?permission=write" | jq -r '.[].login')
-
-        COLLABORATORS+=" $(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/collaborators?permission=admin" | jq -r '.[].login')"
-
-        APPROVED="false"
-        for user in $COLLABORATORS; do
-          if echo "$REACTIONS" | jq -e --arg u "$user" '.[] | select(.user.login == $u)' > /dev/null; then
-            echo "Reaction from authorized user $user detected!"
-            APPROVED="true"
-            break
-          fi
-        done
-
-        if [ "$APPROVED" == "true" ]; then
-          echo "Reaction approved by an authorized user."
-          echo "approval_status=approved" >> $GITHUB_ENV
-          exit 0
-        else
-          echo "No authorized user reacted. Failing job."
-          echo "approval_status=rejected" >> $GITHUB_ENV
-          exit 1
-        fi
-      shell: bash
-
-    - name: Delete comment after reaction (approval or failure)
-      if: always()
-      run: |
-        curl -X DELETE -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ env.comment_id }}"
-        echo "Deleted comment after completion (approval or failure)."
-      shell: bash
-
-    - name: Final status
-      if: env.approval_status != 'approved'
-      run: |
-        echo "Approval failed or no authorized user reacted."
-        exit 1
-      shell: bash
+    - name: Delete Existing Comment
+      if: steps.cc.outputs.comment-id != '' && always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.deleteComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: ${{ steps.cc.outputs.comment-id }}
+          })
