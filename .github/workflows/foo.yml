@@ -15,12 +15,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: Test
-    if:  ${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}
     steps:
 
-    - name: Print
-      run: |
-        cat <<EOF
-        ${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}
-        ${{ toJson(github.event.pull_request.labels) }}
-        EOF
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use the comment-reaction-approval action
+        uses: ./.github/actions/comment-reaction-approval
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          hidden-comment-id: "foo"
+
+      - name: Print
+        run: |
+          cat <<EOF
+          ${{ toJson(github.event.pull_request) }}
+          EOF
