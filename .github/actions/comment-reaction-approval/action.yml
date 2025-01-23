@@ -90,12 +90,13 @@ runs:
         github-token: ${{ inputs.github-token }}
         script: |
           const commentId = core.getInput('comment_id', { required: true });
-          const requiredApprovals = core.getInput('required_approvals', { required: true });
-          const waitTimeoutSeconds = core.getInput('wait_timeout_seconds', { required: true });
-          const checkIntervalSeconds = core.getInput('check_interval_seconds', { required: true });
+          const requiredApprovals = parseInt(core.getInput('required_approvals', { required: true }), 10);
+          const waitTimeoutSeconds = parseInt(core.getInput('wait_timeout_seconds', { required: true }), 10);
+          const checkIntervalSeconds = parseInt(core.getInput('check_interval_seconds', { required: true }), 10);
           const authorizedRoles = core.getInput('authorized_roles', { required: true }).split(',');
+
           const endTime = Date.now() + (waitTimeoutSeconds * 1000);
-          const checkIntervalMs = checkIntervalSeconds * 1000;
+
           async function checkReactions() {
             try {
               const { data: collaborators } = await github.rest.repos.listCollaborators({
