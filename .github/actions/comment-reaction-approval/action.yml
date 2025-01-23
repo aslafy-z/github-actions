@@ -24,13 +24,23 @@ runs:
         COMMENTS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
           "https://api.github.com/repos/${{ github.repository }}/issues/${{ inputs.issue-number }}/comments")
 
-        EXISTING_COMMENT_ID=$(echo "$COMMENTS" | jq -r ".[] | select(.body | contains(\"comment-reaction-approval#${{ inputs.hidden-comment-id }}\")) | .id")
+        COMMENTS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
+          "https://api.github.com/repos/${{ github.repository }}/issues/${{ inputs.issue-number }}/comments")
 
-        if [ "$EXISTING_COMMENT_ID" != "null" ]; then
-          echo "Existing comment found with ID: $EXISTING_COMMENT_ID"
-          echo "comment_id=$EXISTING_COMMENT_ID" >> $GITHUB_ENV
+        # Validate if the response is a valid JSON array
+        if echo "$COMMENTS" | jq -e 'type == "array"' > /dev/null; then
+          EXISTING_COMMENT_ID=$(echo "$COMMENTS" | jq -r '.[] | select(.body | contains("${{ inputs.hidden-comment-id }}")) | .id')
+
+          if [ -n "$EXISTING_COMMENT_ID" ] && [ "$EXISTING_COMMENT_ID" != "null" ]; then
+            echo "Existing comment found with ID: $EXISTING_COMMENT_ID"
+            echo "comment_id=$EXISTING_COMMENT_ID" >> $GITHUB_ENV
+          else
+            echo "No existing comment found."
+            echo "comment_id=" >> $GITHUB_ENV
+          fi
         else
-          echo "No existing comment found."
+          echo "Error: GitHub API did not return a valid JSON array."
+          echo "$COMMENTS"
           echo "comment_id=" >> $GITHUB_ENV
         fi
       shell: bash
