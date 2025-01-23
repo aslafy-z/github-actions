@@ -51,18 +51,20 @@ runs:
       with:
         issue-number: ${{ inputs.issue-number }}
         comment-author: 'github-actions[bot]'
-        body-includes: 'comment-reaction-approval#${{ inputs.comment-id }}'
+        body-includes: '<!-- comment-reaction-approval#${{ inputs.comment-id }} -->'
 
     - name: Delete Existing Comment
       if: steps.fc.outputs.comment-id != ''
       uses: actions/github-script@v6
+      env:
+        INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
       with:
         script: |
           github.rest.issues.deleteComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            comment_id: ${{ steps.fc.outputs.comment-id }}
-          })
+            comment_id: core.getInput('comment_id', { required: true }),
+          });
 
     - name: Create new comment
       id: cc
@@ -73,7 +75,7 @@ runs:
           ${{ inputs.comment-body }}
 
           <!-- comment-reaction-approval#${{ inputs.comment-id }} -->
-        reactions: "+1"
+        reactions: "+1,-1"
 
 - name: Wait for reaction
   id: wr
@@ -149,10 +151,12 @@ runs:
     - name: Delete Existing Comment
       if: steps.cc.outputs.comment-id != '' && always()
       uses: actions/github-script@v6
+      env:
+        INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
       with:
         script: |
           github.rest.issues.deleteComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            comment_id: ${{ steps.cc.outputs.comment-id }}
-          })
+            comment_id: core.getInput('comment_id', { required: true }),
+          });
