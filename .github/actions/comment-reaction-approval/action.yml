@@ -24,9 +24,6 @@ runs:
         COMMENTS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
           "https://api.github.com/repos/${{ github.repository }}/issues/${{ inputs.issue-number }}/comments")
 
-        COMMENTS=$(curl -s -H "Authorization: Bearer ${{ inputs.github-token }}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/${{ inputs.issue-number }}/comments")
-
         # Validate if the response is a valid JSON array
         if echo "$COMMENTS" | jq -e 'type == "array"' > /dev/null; then
           EXISTING_COMMENT_ID=$(echo "$COMMENTS" | jq -r '.[] | select(.body | contains("${{ inputs.hidden-comment-id }}")) | .id')
