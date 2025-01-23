@@ -84,8 +84,7 @@ runs:
                 repo: context.repo.repo
               });
               
-              const allowedRoles = ['admin', 'write'];
-              const validUsers = collaborators.filter(user => allowedRoles.includes(user.permissions.admin || user.permissions.push));
+              const validUsers = collaborators.filter(user => user.permissions.admin || user.permissions.push);
               console.log(`Valid users:`, JSON.stringify(collaborators, null, 2), JSON.stringify(validUsers));
               console.log(`React:`, JSON.stringify(reactions, null, 2));
 
