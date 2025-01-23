@@ -26,7 +26,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
-          hidden-comment-id: "foo"
+          comment-id: "foo"
 
       - name: Print
         run: |
