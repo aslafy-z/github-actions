@@ -11,9 +11,23 @@ inputs:
     description: 'The body of the comment'
     default: 'Please react with :+1: to approve or :-1: to reject.'
     required: false
-  hidden-comment-id:
+  comment-id:
     description: 'A unique identifier for finding the comment'
     required: true
+  wait-timeout-seconds:
+    description: 'Time to wait for a reaction in seconds'
+    default: 1800
+  required-approvals:
+    description: 'Number of required approvals to proceed'
+    default: 1
+
+outputs:
+  approved:
+    description: 'Indicates whether the comment received an approval reaction from an authorized user.'
+    value: ${{ steps.wait-reaction.outputs.reaction_received }}
+  timed_out:
+    description: 'Indicates whether the approval process timed out.'
+    value: ${{ steps.wait-reaction.outputs.timed_out }}
 
 runs:
   using: 'composite'
@@ -24,7 +38,7 @@ runs:
       with:
         issue-number: ${{ inputs.issue-number }}
         comment-author: 'github-actions[bot]'
-        body-includes: 'comment-reaction-approval#${{ inputs.hidden-comment-id }}'
+        body-includes: 'comment-reaction-approval#${{ inputs.comment-id }}'
 
     - name: Delete Existing Comment
       if: steps.fc.outputs.comment-id != ''
@@ -45,7 +59,7 @@ runs:
         body: |
           ${{ inputs.comment-body }}
 
-          <!-- comment-reaction-approval#${{ inputs.hidden-comment-id }} -->
+          <!-- comment-reaction-approval#${{ inputs.comment-id }} -->
         reactions: "+1"
 
     - name: Wait for reaction
@@ -55,7 +69,7 @@ runs:
         github-token: ${{ inputs.github-token }}
         script: |
           const commentId = '${{ steps.cc.outputs.comment-id }}';
-          const endTime = Date.now() + 1800000;  // 30-minute timeout
+          const endTime = Date.now() + (${{ inputs.wait-timeout-seconds }} * 1000);
           
           async function checkReaction() {
             while (Date.now() < endTime) {
@@ -80,9 +94,10 @@ runs:
               
               console.log(`Current reaction count from admins/writers: ${reactionCount}`);
               
-              if (reactionCount > 0) {
-                console.log('Reaction received from an admin or writer, proceeding.');
-                core.exportVariable('reaction_received', 'true');
+              if (reactionCount >= ${{ inputs.required-approvals }}) {
+                console.log('Required approvals received, proceeding.');
+                core.setOutput('approved', 'true');
+                core.setOutput('timed_out', 'false');
                 return;
               }
               
@@ -90,7 +105,8 @@ runs:
             }
             
             console.log('No reaction received from an admin or writer within the timeout period.');
-            core.exportVariable('reaction_received', 'false');
+            core.setOutput('approved', 'false');
+            core.setOutput('timed_out', 'true');
             core.setFailed('No reaction received from an admin or writer within the timeout period.');
           }
           
