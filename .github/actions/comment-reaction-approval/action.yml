@@ -86,7 +86,9 @@ runs:
               
               const allowedRoles = ['admin', 'write'];
               const validUsers = collaborators.filter(user => allowedRoles.includes(user.permissions.admin || user.permissions.push));
-              
+              console.log(`Valid users: ${validUsers}`);
+              console.log(`Got reactions: ${reactions}`);
+
               const reactionCount = reactions.filter(reaction => 
                 reaction.content === '+1' && 
                 validUsers.some(user => user.login === reaction.user.login)
