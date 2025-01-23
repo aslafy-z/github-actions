@@ -1,5 +1,5 @@
 name: 'Comment Reaction Approval'
-description: 'Creates a comment, waits for reaction from authorized users (writers/admins), and deletes on approval or failure'
+description: 'Advanced comment approval workflow with flexible authorization and reaction handling'
 inputs:
   github-token:
     description: 'GitHub token for API requests'
@@ -9,25 +9,38 @@ inputs:
     required: true
   comment-body:
     description: 'The body of the comment'
-    default: 'Please react with :+1: to approve or :-1: to reject.'
     required: false
+    default: 'Please react with :+1: to approve or :-1: to reject.'
   comment-id:
     description: 'A unique identifier for finding the comment'
     required: true
   wait-timeout-seconds:
     description: 'Time to wait for a reaction in seconds'
+    required: false
     default: 1800
+  check-interval-seconds:
+    description: 'Interval between reaction checks'
+    required: false
+    default: 30
   required-approvals:
     description: 'Number of required approvals to proceed'
+    required: false
     default: 1
+  authorized-roles:
+    description: 'Comma-separated list of allowed roles (admin,maintain,push,triage,pull)'
+    required: false
+    default: 'admin,maintain,push'
 
 outputs:
   approved:
-    description: 'Indicates whether the comment received an approval reaction from an authorized user.'
-    value: ${{ steps.wait-reaction.outputs.reaction_received }}
+    description: 'Indicates whether the comment received sufficient approvals'
+    value: ${{ steps.wr.outputs.approved }}
+  approval-count:
+    description: 'Number of approvals received'
+    value: ${{ steps.reaction-check.outputs.approval-count }}
   timed_out:
-    description: 'Indicates whether the approval process timed out.'
-    value: ${{ steps.wait-reaction.outputs.timed_out }}
+    description: 'Indicates whether the approval process timed out'
+    value: ${{ steps.qr.outputs.timed_out }}
 
 runs:
   using: 'composite'
@@ -62,53 +75,76 @@ runs:
           <!-- comment-reaction-approval#${{ inputs.comment-id }} -->
         reactions: "+1"
 
-    - name: Wait for reaction
-      id: wait-reaction
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ inputs.github-token }}
-        script: |
-          const commentId = '${{ steps.cc.outputs.comment-id }}';
-          const endTime = Date.now() + (${{ inputs.wait-timeout-seconds }} * 1000);
-          
-          async function checkReaction() {
-            const { data: collaborators } = await github.rest.repos.listCollaborators({
+- name: Wait for reaction
+  id: wr
+  uses: actions/github-script@v7
+  env:
+    INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
+    INPUT_REQUIRED_APPROVALS: '${{ inputs.required-approvals }}'
+    INPUT_WAIT_TIMEOUT_SECONDS: '${{ inputs.wait-timeout-seconds }}'
+    INPUT_CHECK_INTERVAL_SECONDS: '${{ inputs.check-interval-seconds }}'
+    INPUT_AUTHORIZED_ROLES: '${{ inputs.authorized-roles }}'
+  with:
+    github-token: ${{ inputs.github-token }}
+    script: |
+      const commentId = core.getInput('comment_id', { required: true });
+      const requiredApprovals = core.getInput('required_approvals', { required: true });
+      const waitTimeoutSeconds = core.getInput('wait_timeout_seconds', { required: true });
+      const checkIntervalSeconds = core.getInput('check_interval_seconds', { required: true });
+      const authorizedRoles = core.getInput('authorized_roles', { required: true }).split(',');
+
+      const endTime = Date.now() + (waitTimeoutSeconds * 1000);
+      const checkIntervalMs = checkIntervalSeconds * 1000;
+
+      async function checkReactions() {
+        try {
+          const { data: collaborators } = await github.rest.repos.listCollaborators({
+            owner: context.repo.owner,
+            repo: context.repo.repo
+          });
+
+          const validUsers = collaborators
+            .filter(user => 
+              authorizedRoles.some(role => 
+                user.permissions[role.trim()] === true
+              )
+            )
+            .map(user => user.login);
+
+          while (Date.now() < endTime) {
+            const { data: reactions } = await github.rest.reactions.listForIssueComment({
               owner: context.repo.owner,
-              repo: context.repo.repo
+              repo: context.repo.repo,
+              comment_id: commentId
             });
 
-            while (Date.now() < endTime) {
-              const { data: reactions } = await github.rest.reactions.listForIssueComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: commentId
-              });
-              
-              const validUsers = collaborators.filter(user => user.permissions.admin || user.permissions.push);
-              const reactionCount = reactions.filter(reaction => 
-                reaction.content === '+1' && 
-                validUsers.some(user => user.login === reaction.user.login)
-              ).length;
-              
-              console.log(`Current reaction count from admins/writers: ${reactionCount}`);
-              
-              if (reactionCount >= ${{ inputs.required-approvals }}) {
-                console.log('Required approvals received, proceeding.');
-                core.setOutput('approved', 'true');
-                core.setOutput('timed_out', 'false');
-                return;
-              }
-              
-              await new Promise(resolve => setTimeout(resolve, 30000)); // Check every 30 seconds
+            const validReactions = reactions.filter(reaction => 
+              reaction.content === '+1' && validUsers.includes(reaction.user.login)
+            );
+
+            console.log(`Current valid reaction count: ${validReactions.length}`);
+
+            if (validReactions.length >= requiredApprovals) {
+              core.setOutput('approved', 'true');
+              core.setOutput('approval_count', `${validReactions.length}`);
+              core.setOutput('timed_out', 'false');
+              return;
             }
-            
-            console.log('No reaction received from an admin or writer within the timeout period.');
-            core.setOutput('approved', 'false');
-            core.setOutput('timed_out', 'true');
-            core.setFailed('No reaction received from an admin or writer within the timeout period.');
+
+            await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
           }
-          
-          await checkReaction();
+
+          throw new Error('No reaction received from an admin or writer within the timeout period.');
+        } catch (error) {
+          console.log(error.message);
+          core.setOutput('approved', 'false');
+          core.setOutput('approval_count', '-1');
+          core.setOutput('timed_out', 'true');
+          core.setFailed(error.message);
+        }
+      }
+
+      await checkReactions();
 
     - name: Delete Existing Comment
       if: steps.cc.outputs.comment-id != '' && always()
