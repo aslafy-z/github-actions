@@ -17,19 +17,19 @@ inputs:
   wait-timeout-seconds:
     description: 'Time to wait for a reaction in seconds'
     required: false
-    default: 1800
+    default: '1800'
   check-interval-seconds:
     description: 'Interval between reaction checks'
     required: false
-    default: 30
+    default: '30'
   required-approvals:
     description: 'Number of required approvals to mark as approved'
     required: false
-    default: 1
+    default: '1'
   required-rejections:
     description: 'Number of required rejections to mark as rejected'
     required: false
-    default: 1
+    default: '1'
   authorized-roles:
     description: 'Comma-separated list of allowed roles (admin,maintain,push,triage,pull)'
     required: false
@@ -44,13 +44,13 @@ outputs:
     value: ${{ steps.wr.outputs.rejected }}
   approval-count:
     description: 'Number of approvals received'
-    value: ${{ steps.reaction-check.outputs.approval-count }}
+    value: ${{ steps.wr.outputs.approval-count }}
   rejection-count:
     description: 'Number of rejections received'
-    value: ${{ steps.reaction-check.outputs.rejection-count }}
-  timed_out:
+    value: ${{ steps.wr.outputs.rejection-count }}
+  timed-out:
     description: 'Indicates whether the approval process timed out'
-    value: ${{ steps.qr.outputs.timed_out }}
+    value: ${{ steps.wr.outputs.timed-out }}
 
 runs:
   using: 'composite'
@@ -65,9 +65,9 @@ runs:
 
     - name: Delete Existing Comment
       if: steps.fc.outputs.comment-id != ''
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       env:
-        INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
+        INPUT_COMMENT_ID: '${{ steps.fc.outputs.comment-id }}'
       with:
         script: |
           github.rest.issues.deleteComment({
@@ -117,8 +117,8 @@ runs:
               });
 
               const validUsers = collaborators
-                .filter(user => 
-                  authorizedRoles.some(role => 
+                .filter(user =>
+                  authorizedRoles.some(role =>
                     user.permissions[role.trim()] === true
                   )
                 )
@@ -131,11 +131,11 @@ runs:
                   comment_id: commentId,
                 });
 
-                const approvals = reactions.filter(reaction => 
+                const approvals = reactions.filter(reaction =>
                   reaction.content === '+1' && validUsers.includes(reaction.user.login)
                 );
 
-                const rejections = reactions.filter(reaction => 
+                const rejections = reactions.filter(reaction =>
                   reaction.content === '-1' && validUsers.includes(reaction.user.login)
                 );
 
@@ -144,9 +144,9 @@ runs:
                 if (rejections.length >= requiredRejections) {
                   core.setOutput('approved', 'false');
                   core.setOutput('rejected', 'true');
-                  core.setOutput('approval_count', `${approvals.length}`);
-                  core.setOutput('rejection_count', `${rejections.length}`);
-                  core.setOutput('timed_out', 'false');
+                  core.setOutput('approval-count', `${approvals.length}`);
+                  core.setOutput('rejection-count', `${rejections.length}`);
+                  core.setOutput('timed-out', 'false');
                   console.log('Run rejected');
                   return;
                 }
@@ -154,9 +154,9 @@ runs:
                 if (approvals.length >= requiredApprovals) {
                   core.setOutput('approved', 'true');
                   core.setOutput('rejected', 'false');
-                  core.setOutput('approval_count', `${approvals.length}`);
-                  core.setOutput('rejection_count', `${rejections.length}`);
-                  core.setOutput('timed_out', 'false');
+                  core.setOutput('approval-count', `${approvals.length}`);
+                  core.setOutput('rejection-count', `${rejections.length}`);
+                  core.setOutput('timed-out', 'false');
                   return;
                 }
 
@@ -165,9 +165,9 @@ runs:
 
               core.setOutput('approved', 'false');
               core.setOutput('rejected', 'false');
-              core.setOutput('approval_count', '-1');
-              core.setOutput('rejection_count', '-1');
-              core.setOutput('timed_out', 'true');
+              core.setOutput('approval-count', '-1');
+              core.setOutput('rejection-count', '-1');
+              core.setOutput('timed-out', 'true');
               console.log('No reaction received within the timeout period.');
               return;
 
@@ -175,9 +175,9 @@ runs:
               console.log(`Error: ${error.message}`);
               core.setOutput('approved', 'false');
               core.setOutput('rejected', 'false');
-              core.setOutput('approval_count', '-1');
-              core.setOutput('rejection_count', '-1');
-              core.setOutput('timed_out', 'false');
+              core.setOutput('approval-count', '-1');
+              core.setOutput('rejection-count', '-1');
+              core.setOutput('timed-out', 'false');
               core.setFailed(error.message);
             }
           }
@@ -186,7 +186,7 @@ runs:
 
     - name: Delete Existing Comment
       if: steps.cc.outputs.comment-id != '' && always()
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       env:
         INPUT_COMMENT_ID: '${{ steps.cc.outputs.comment-id }}'
       with:
