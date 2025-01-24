@@ -23,6 +23,7 @@ jobs:
 
       - name: Use the comment-reaction-approval action
         uses: ./.github/actions/comment-reaction-approval
+        id: cra
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -31,5 +32,5 @@ jobs:
       - name: Print
         run: |
           cat <<EOF
-          ${{ toJson(github.event.pull_request) }}
+          ${{ toJson(steps.cra.outputs) }}
           EOF
