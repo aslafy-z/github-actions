@@ -126,7 +126,8 @@ runs:
               core.info(`Authorized users: ${JSON.stringify(authorizedUsers)}`)
 
               while (Date.now() < endTime) {
-                core.info(`Time remaining: ${Math.ceil((endTime - Date.now()) / 1000)}s`);
+                const timeRemainingSeconds = Math.ceil((endTime - Date.now()) / 1000);
+                core.info(`Time remaining: ${timeRemainingSeconds}s`);
 
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
                   owner: context.repo.owner,
