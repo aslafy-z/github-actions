@@ -102,13 +102,13 @@ runs:
         script: |
           const commentId = core.getInput('comment_id', { required: true });
           const requiredApprovals = parseInt(core.getInput('required_approvals', { required: true }), 10);
-          if (isNaN(requiredApprovals) || requiredApprovals <= 0) throw new Error('required_approvals input should be a valid positive number.');
+          if (isNaN(requiredApprovals) || requiredApprovals <= 0) { core.error('required_approvals input should be a valid positive number.'); return; }
           const requiredRejections = parseInt(core.getInput('required_rejections', { required: true }), 10);
-          if (isNaN(requiredRejections) || requiredRejections <= 0) throw new Error('required_rejections input should be a valid positive number.');
+          if (isNaN(requiredRejections) || requiredRejections <= 0) { core.error('required_rejections input should be a valid positive number.'); return; }
           const waitTimeoutSeconds = parseInt(core.getInput('wait_timeout_seconds', { required: true }), 10);
-          if (isNaN(waitTimeoutSeconds) || waitTimeoutSeconds <= 0) throw new Error('wait_timeout_seconds input should be a valid positive number.');
+          if (isNaN(waitTimeoutSeconds) || waitTimeoutSeconds <= 0) { core.error('wait_timeout_seconds input should be a valid positive number.'); return; }
           const checkIntervalSeconds = parseInt(core.getInput('check_interval_seconds', { required: true }), 10);
-          if (isNaN(checkIntervalSeconds) || checkIntervalSeconds < 0) throw new Error('check_interval_seconds input should be a valid number.');
+          if (isNaN(checkIntervalSeconds) || checkIntervalSeconds < 0) { core.error('check_interval_seconds input should be a valid number.'); return; }
           const authorizedRoles = core.getInput('authorized_roles', { required: true }).split(',');
 
           let timeLeftSeconds = waitTimeoutSeconds;
