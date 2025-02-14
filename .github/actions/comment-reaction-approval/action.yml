@@ -107,7 +107,8 @@ runs:
           const checkIntervalSeconds = parseInt(core.getInput('check_interval_seconds', { required: true }), 10);
           const authorizedRoles = core.getInput('authorized_roles', { required: true }).split(',');
 
-          let endTime = Date.now() + (waitTimeoutSeconds * 1000);
+          let timeLeftSeconds = waitTimeoutSeconds;
+          let isPaused = false;
 
           async function checkReactions() {
             try {
@@ -125,8 +126,8 @@ runs:
                 .map(user => user.login);
               core.info(`Authorized users: ${JSON.stringify(authorizedUsers)}`)
 
-              while (Date.now() < endTime) {
-                core.info(`Time remaining: ${Math.ceil((endTime - Date.now()) / 1000)}s`);
+              while (timeLeftSeconds > 0) {
+                core.info(`Time left before timeout: ${Math.floor(timeLeftSeconds / 60000)}m ${Math.floor((timeLeftSeconds % 60000) / 1000)}s (${isPaused ? 'PAUSED' : 'RUNNING'})`);
 
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
                   owner: context.repo.owner,
@@ -162,12 +163,12 @@ runs:
                   return;
                 }
 
-                if (pauses > 0) {
-                  core.info('Approval timeout pause is detected.');
-                  endTime += checkIntervalSeconds * 1000;
+                isPaused = pauses > 0;
+                if (!isPaused) {
+                  remainingTimeSeconds -= checkIntervalSeconds;
                 }
 
-                core.info('Next check in ${checkIntervalSeconds}s.');
+                core.info('Next check in ${checkIntervalSeconds}s');
                 await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
               }
 
