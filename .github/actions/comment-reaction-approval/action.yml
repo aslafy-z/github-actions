@@ -10,7 +10,7 @@ inputs:
   comment-body:
     description: 'The body of the comment'
     required: false
-    default: 'Please react with :+1: to approve or :-1: to reject.'
+    default: 'Please react with :+1: to approve, :-1: to reject, or :eyes: to pause timeout.'
   comment-id:
     description: 'A unique identifier for finding the comment'
     required: true
@@ -85,7 +85,7 @@ runs:
           ${{ inputs.comment-body }}
 
           <!-- comment-reaction-approval#${{ inputs.comment-id }} -->
-        reactions: "+1,-1"
+        reactions: "+1,-1,eyes"
 
     - name: Wait for reaction
       id: wr
@@ -124,7 +124,7 @@ runs:
                 )
                 .map(user => user.login);
 
-              while (Date.now() < endTime) {
+              while (true) {
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -134,12 +134,27 @@ runs:
                 const approvals = reactions.filter(reaction =>
                   reaction.content === '+1' && validUsers.includes(reaction.user.login)
                 );
-
                 const rejections = reactions.filter(reaction =>
                   reaction.content === '-1' && validUsers.includes(reaction.user.login)
                 );
+                const pauses = reactions.filter(reaction =>
+                  reaction.content === 'eyes' && validUsers.includes(reaction.user.login)
+                );
+                core.info(validUsers)
+                core.info(reaction.user.login)
+                core.info(reactions)
 
-                console.log(`Approvals: ${approvals.length}, Rejections: ${rejections.length}`);
+                core.info(`Approvals: ${approvals.length}, Rejections: ${rejections.length}, Pauses: ${pauses.length}`);
+
+                if (pauses.length > 0) {
+                  core.info('Approval timeout pause is detected.');
+                  await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
+                  continue;
+                }
+          
+                if (Date.now() >= endTime) {
+                  break;
+                }
 
                 if (rejections.length >= requiredRejections) {
                   core.setOutput('approved', 'false');
@@ -147,7 +162,7 @@ runs:
                   core.setOutput('approval-count', `${approvals.length}`);
                   core.setOutput('rejection-count', `${rejections.length}`);
                   core.setOutput('timed-out', 'false');
-                  console.log('Run rejected');
+                  core.info('Rejection was given.');
                   return;
                 }
 
@@ -157,6 +172,7 @@ runs:
                   core.setOutput('approval-count', `${approvals.length}`);
                   core.setOutput('rejection-count', `${rejections.length}`);
                   core.setOutput('timed-out', 'false');
+                  core.info('Approval was given.');
                   return;
                 }
 
@@ -168,7 +184,7 @@ runs:
               core.setOutput('approval-count', '-1');
               core.setOutput('rejection-count', '-1');
               core.setOutput('timed-out', 'true');
-              console.log('No reaction received within the timeout period.');
+              core.info('No reaction received within the timeout period.');
               return;
 
             } catch (error) {
