@@ -132,7 +132,7 @@ runs:
                   comment_id: commentId,
                 });
 
-                const authorizedUsersReactions = reactions.filter(reaction => validUsers.includes(reaction.user.login));
+                const authorizedUsersReactions = reactions.filter(reaction => authorizedUsers.includes(reaction.user.login));
 
                 const approvals = authorizedUsersReactions.filter(reaction => reaction.content === '+1');
                 const rejections = authorizedUsersReactions.filter(reaction => reaction.content === '-1');
