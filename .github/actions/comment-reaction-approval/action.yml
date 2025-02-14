@@ -141,7 +141,6 @@ runs:
                   reaction.content === 'eyes' && validUsers.includes(reaction.user.login)
                 );
                 core.info(validUsers)
-                core.info(reaction.user.login)
                 core.info(reactions)
 
                 core.info(`Approvals: ${approvals.length}, Rejections: ${rejections.length}, Pauses: ${pauses.length}`);
