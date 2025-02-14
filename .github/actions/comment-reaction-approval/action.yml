@@ -164,12 +164,10 @@ runs:
                 }
 
                 isPaused = pauses > 0;
-                if (!isPaused) {
-                  remainingTimeSeconds -= checkIntervalSeconds;
-                }
 
                 core.info('Next check in ${checkIntervalSeconds}s');
                 await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
+                if (!isPaused) timeLeftSeconds -= checkIntervalSeconds;
               }
 
               core.setOutput('approved', 'false');
