@@ -107,7 +107,7 @@ runs:
           const checkIntervalSeconds = parseInt(core.getInput('check_interval_seconds', { required: true }), 10);
           const authorizedRoles = core.getInput('authorized_roles', { required: true }).split(',');
 
-          const endTime = Date.now() + (waitTimeoutSeconds * 1000);
+          let endTime = Date.now() + (waitTimeoutSeconds * 1000);
 
           async function checkReactions() {
             try {
@@ -125,7 +125,7 @@ runs:
                 .map(user => user.login);
               core.info(`Authorized users: ${JSON.stringify(authorizedUsers)}`)
 
-              while (true) {
+              while (Date.now() >= endTime) {
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -134,42 +134,35 @@ runs:
 
                 const authorizedUsersReactions = reactions.filter(reaction => authorizedUsers.includes(reaction.user.login));
 
-                const approvals = authorizedUsersReactions.filter(reaction => reaction.content === '+1');
-                const rejections = authorizedUsersReactions.filter(reaction => reaction.content === '-1');
-                const pauses = authorizedUsersReactions.filter(reaction => reaction.content === 'eyes');
+                const approvals = authorizedUsersReactions.filter(reaction => reaction.content === '+1').length;
+                const rejections = authorizedUsersReactions.filter(reaction => reaction.content === '-1').length;
+                const pauses = authorizedUsersReactions.filter(reaction => reaction.content === 'eyes').length;
 
-                core.debug(JSON.stringify(reactions))
+                core.info(`Approvals: ${approvals}, Rejections: ${rejections}, Pauses: ${pauses}`);
 
-                core.info(`Approvals: ${approvals.length}, Rejections: ${rejections.length}, Pauses: ${pauses.length}`);
-
-                if (pauses.length > 0) {
-                  core.info('Approval timeout pause is detected.');
-                  await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
-                  continue;
-                }
-          
-                if (Date.now() >= endTime) {
-                  break;
-                }
-
-                if (rejections.length >= requiredRejections) {
+                if (rejections >= requiredRejections) {
                   core.setOutput('approved', 'false');
                   core.setOutput('rejected', 'true');
-                  core.setOutput('approval-count', `${approvals.length}`);
-                  core.setOutput('rejection-count', `${rejections.length}`);
+                  core.setOutput('approval-count', `${approvals}`);
+                  core.setOutput('rejection-count', `${rejections}`);
                   core.setOutput('timed-out', 'false');
                   core.info('Rejection was given.');
                   return;
                 }
 
-                if (approvals.length >= requiredApprovals) {
+                if (approvals >= requiredApprovals) {
                   core.setOutput('approved', 'true');
                   core.setOutput('rejected', 'false');
-                  core.setOutput('approval-count', `${approvals.length}`);
-                  core.setOutput('rejection-count', `${rejections.length}`);
+                  core.setOutput('approval-count', `${approvals}`);
+                  core.setOutput('rejection-count', `${rejections}`);
                   core.setOutput('timed-out', 'false');
                   core.info('Approval was given.');
                   return;
+                }
+
+                if (pauses > 0) {
+                  core.info('Approval timeout pause is detected.');
+                  endTime += checkIntervalSeconds * 1000;
                 }
 
                 await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
