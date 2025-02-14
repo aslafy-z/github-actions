@@ -125,7 +125,7 @@ runs:
                 .map(user => user.login);
               core.info(`Authorized users: ${JSON.stringify(authorizedUsers)}`)
 
-              while (Date.now() >= endTime) {
+              while (Date.now() < endTime) {
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
