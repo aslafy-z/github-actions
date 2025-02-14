@@ -116,13 +116,14 @@ runs:
                 repo: context.repo.repo,
               });
 
-              const validUsers = collaborators
+              const authorizedUsers = collaborators
                 .filter(user =>
                   authorizedRoles.some(role =>
                     user.permissions[role.trim()] === true
                   )
                 )
                 .map(user => user.login);
+              core.info(`Authorized users: ${JSON.stringify(authorizedUsers)}`)
 
               while (true) {
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
@@ -131,17 +132,13 @@ runs:
                   comment_id: commentId,
                 });
 
-                const approvals = reactions.filter(reaction =>
-                  reaction.content === '+1' && validUsers.includes(reaction.user.login)
-                );
-                const rejections = reactions.filter(reaction =>
-                  reaction.content === '-1' && validUsers.includes(reaction.user.login)
-                );
-                const pauses = reactions.filter(reaction =>
-                  reaction.content === 'eyes' && validUsers.includes(reaction.user.login)
-                );
-                core.info(validUsers)
-                core.info(reactions)
+                const authorizedUsersReactions = reactions.filter(reaction => validUsers.includes(reaction.user.login));
+
+                const approvals = authorizedUsersReactions.filter(reaction => reaction.content === '+1');
+                const rejections = authorizedUsersReactions.filter(reaction => reaction.content === '-1');
+                const pauses = authorizedUsersReactions.filter(reaction => reaction.content === 'eyes');
+
+                core.debug(JSON.stringify(reactions))
 
                 core.info(`Approvals: ${approvals.length}, Rejections: ${rejections.length}, Pauses: ${pauses.length}`);
 
