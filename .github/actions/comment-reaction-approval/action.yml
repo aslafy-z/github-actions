@@ -100,8 +100,6 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          const parseIntEx = (v, r=10) => { const n = parseInt(v, r); if(isNaN(n)) { throw new Error('NaN') }; return n; }
-
           const commentId = core.getInput('comment_id', { required: true });
           const requiredApprovals = parseInt(core.getInput('required_approvals', { required: true }), 10);
           if (isNaN(requiredApprovals) || requiredApprovals <= 0) throw new Error('required_approvals input should be a valid positive number.');
