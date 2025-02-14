@@ -127,8 +127,6 @@ runs:
               core.info(`Authorized users: ${JSON.stringify(authorizedUsers)}`)
 
               while (timeLeftSeconds > 0) {
-                core.info(`Time left before timeout: ${Math.floor(timeLeftSeconds / 60000)}m ${Math.floor((timeLeftSeconds % 60000) / 1000)}s (${isPaused ? 'PAUSED' : 'RUNNING'})`);
-
                 const { data: reactions } = await github.rest.reactions.listForIssueComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -164,10 +162,10 @@ runs:
                 }
 
                 isPaused = pauses > 0;
-
-                core.info('Next check in ${checkIntervalSeconds}s');
-                await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
                 if (!isPaused) timeLeftSeconds -= checkIntervalSeconds;
+
+                core.info(`Time left before timeout: ${Math.floor(timeLeftSeconds / 60)}m ${Math.floor(timeLeftSeconds % 60)}s (${isPaused ? 'PAUSED' : 'RUNNING'})`);
+                await new Promise(resolve => setTimeout(resolve, checkIntervalSeconds * 1000));
               }
 
               core.setOutput('approved', 'false');
