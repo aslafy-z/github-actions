@@ -19,6 +19,11 @@ env:
   SKIP_LABEL: e2e/skip
   CHECK_NAME: e2e
 
+permissions:
+  checks: write
+  pull-requests: write
+  actions: write
+
 jobs:
   pull-request:
     runs-on: ubuntu-latest
@@ -88,7 +93,7 @@ jobs:
         if: steps.decision.outputs.should_run == 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
-          github-token: ${{ secrets.CCLBOT_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const result = await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
