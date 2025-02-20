@@ -109,6 +109,15 @@ jobs:
     if: github.event_name == 'push'
     name: Push evaluate
     steps:
+      - uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
+        name: Enqueue e2e
+        id: create
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          sha: ${{ context.sha }}
+          name: ${{ env.CHECK_NAME }}
+          status: queued
+
       - name: Trigger e2e workflow
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
