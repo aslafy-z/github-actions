@@ -53,7 +53,7 @@ jobs:
       if: inputs.status-commit-sha && inputs.status-check-id
       uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.CCLBOT_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
         check_id: ${{ inputs.status-check-id }}
         status: in_progress
@@ -121,7 +121,7 @@ jobs:
       uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
       if: always() && success() && inputs.status-commit-sha && inputs.status-check-id
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.CCLBOT_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
         check_id: ${{ inputs.status-check-id }}
         conclusion: success
@@ -139,7 +139,7 @@ jobs:
       uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
       if: always() && failure() && inputs.status-commit-sha && inputs.status-check-id
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.CCLBOT_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
         check_id: ${{ inputs.status-check-id }}
         conclusion: failure
