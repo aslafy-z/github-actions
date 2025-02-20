@@ -20,8 +20,8 @@ on:
         description: "Comment ID to update"
         required: false
         type: string
-      status-check-id:
-        description: "Check run ID to update"
+      status-check-name:
+        description: "Commit status ID to update"
         required: false
         type: string
 
@@ -31,13 +31,14 @@ concurrency:
 
 permissions:
   contents: read
-  checks: write
+  statuses: write
   issues: write
   pull-requests: write
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    runs-on:
+    - runs-on=${{github.run_id}}/runner=16cpu-linux-x64/extras=s3-cache/disk=large
     steps:
     - name: Status / Update comment
       if: inputs.status-comment-id
@@ -49,16 +50,16 @@ jobs:
           **Update:** E2E tests are being executed. You can check the progress for [run ${{ github.run_id }}](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}).
         reactions: rocket
 
-    - name: Status / Update check
+    - name: Status / Update check to pending
       if: inputs.status-commit-sha && inputs.status-check-id
-      uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
+      uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
       with:
-        token: ${{ secrets.CCLBOT_TOKEN }}
-        sha: ${{ inputs.status-commit-sha }}
-        check_id: ${{ inputs.status-check-id }}
-        status: in_progress
-        details_url: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
-
+        token: ${{ secrets.GITHUB_TOKEN }}
+        sha: ${{ github.event.pull_request.head.sha }}
+        context: ${{ inputs.status-check-name }}
+        status: pending
+        description: E2E tests are running
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
 
     - name: Checkout
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -108,7 +109,6 @@ jobs:
         wait-timeout-seconds: '600'
         check-interval-seconds: '10'
 
-
     - name: React to comment with success
       uses: dkershner6/reaction-action@97ede302a1b145b3739dec3ca84a489a34ef48b5 # v2
       if: always() && success() && inputs.status-comment-id
@@ -117,15 +117,16 @@ jobs:
         commentId: ${{ inputs.status-comment-id }}
         reaction: "+1"
 
-    - name: Set status success
-      uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
-      if: always() && success() && inputs.status-commit-sha && inputs.status-check-id
+    - name: Status / Update check to success
+      if: always() && success() && inputs.status-commit-sha && inputs.status-check-name
+      uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
       with:
-        token: ${{ secrets.CCLBOT_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
-        check_id: ${{ inputs.status-check-id }}
-        conclusion: success
-        details_url: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
+        context: ${{ inputs.status-check-name }}
+        status: success
+        description: E2E tests succeeded
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
 
     - name: React to comment with failure
       uses: dkershner6/reaction-action@97ede302a1b145b3739dec3ca84a489a34ef48b5 # v2
@@ -135,12 +136,13 @@ jobs:
         commentId: ${{ inputs.status-comment-id }}
         reaction: "-1"
 
-    - name: Set status failure
-      uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
-      if: always() && failure() && inputs.status-commit-sha && inputs.status-check-id
+    - name: Status / Update check to failure
+      if: always() && failure() && inputs.status-commit-sha && inputs.status-check-name
+      uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
       with:
-        token: ${{ secrets.CCLBOT_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
-        check_id: ${{ inputs.status-check-id }}
-        conclusion: failure
-        details_url: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
+        context: ${{ inputs.status-check-name }}
+        status: failure
+        description: E2E tests failed
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
