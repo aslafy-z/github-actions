@@ -118,13 +118,13 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'e2e.yml',
-              ref: context.steps.pr_data.outputs.ref,
+              ref: "${{ steps.pr_data.outputs.ref }}",
               inputs: {
                 debug: context.payload.comment?.body?.includes(`${process.env.RUN_COMMAND} debug`) === true,
                 'debug-pr-number': `${context.payload.issue.number}`,
                 'status-comment-id': `${context.payload.comment.id}`,
-                'status-commit-sha': context.steps.pr_data.outputs.commit_sha,
-                'status-check-id': context.steps.check.outputs.check_id,
+                'status-commit-sha': "${{ steps.pr_data.outputs.commit_sha }}",
+                'status-check-id': "${{ steps.check.outputs.check_id }}",
               },
             })
 
@@ -153,6 +153,6 @@ jobs:
               ref: context.ref,
               inputs: {
                 'status-commit-sha': context.sha,
-                'status-check-id': context.steps.check.outputs.check_id,
+                'status-check-id': "${{ steps.check.outputs.check_id }}",
               },
             })
