@@ -38,7 +38,7 @@ permissions:
 jobs:
   e2e:
     runs-on:
-    - runs-on=${{github.run_id}}/runner=16cpu-linux-x64/extras=s3-cache/disk=large
+    - ubuntu-latest
     steps:
     - name: Status / Update comment
       if: inputs.status-comment-id
