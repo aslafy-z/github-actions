@@ -11,7 +11,7 @@ on:
       - synchronize
   push:
     branches:
-      - main
+      - master
 
 env:
   RUN_COMMAND: /run-e2e
@@ -93,7 +93,6 @@ jobs:
         if: steps.decision.outputs.should_run == 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const result = await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
@@ -126,7 +125,6 @@ jobs:
       - name: Trigger e2e workflow
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
-          github-token: ${{ secrets.CCLBOT_TOKEN }}
           script: |
             const result = await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
