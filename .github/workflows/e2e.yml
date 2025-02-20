@@ -20,8 +20,8 @@ on:
         description: "Comment ID to update"
         required: false
         type: string
-      status-check-name:
-        description: "Check name to update"
+      status-check-id:
+        description: "Check run ID to update"
         required: false
         type: string
 
@@ -50,12 +50,12 @@ jobs:
         reactions: rocket
 
     - name: Status / Update check
-      if: inputs.status-commit-sha
+      if: inputs.status-commit-sha && inputs.status-check-id
       uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
-        name: ${{ inputs.status-check-name }}
+        check_id: ${{ inputs.status-check-id }}
         status: in_progress
         details_url: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
 
@@ -108,6 +108,7 @@ jobs:
         wait-timeout-seconds: '600'
         check-interval-seconds: '10'
 
+
     - name: React to comment with success
       uses: dkershner6/reaction-action@97ede302a1b145b3739dec3ca84a489a34ef48b5 # v2
       if: always() && success() && inputs.status-comment-id
@@ -118,11 +119,11 @@ jobs:
 
     - name: Set status success
       uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
-      if: always() && success() && inputs.status-commit-sha
+      if: always() && success() && inputs.status-commit-sha && inputs.status-check-id
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
-        name: ${{ inputs.status-check-name }}
+        check_id: ${{ inputs.status-check-id }}
         conclusion: success
         details_url: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
 
@@ -136,10 +137,10 @@ jobs:
 
     - name: Set status failure
       uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
-      if: always() && failure() && inputs.status-commit-sha
+      if: always() && failure() && inputs.status-commit-sha && inputs.status-check-id
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         sha: ${{ inputs.status-commit-sha }}
-        name: ${{ inputs.status-check-name }}
+        check_id: ${{ inputs.status-check-id }}
         conclusion: failure
         details_url: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
