@@ -55,7 +55,7 @@ jobs:
       uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        sha: ${{ github.event.pull_request.head.sha }}
+        sha: ${{ inputs.status-commit-sha }}
         context: ${{ inputs.status-check-name }}
         status: pending
         description: E2E tests are running
