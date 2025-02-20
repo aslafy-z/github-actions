@@ -114,7 +114,7 @@ jobs:
         id: create
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          sha: ${{ context.sha }}
+          sha: ${{ github.context.sha }}
           name: ${{ env.CHECK_NAME }}
           status: queued
 
