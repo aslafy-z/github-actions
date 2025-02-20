@@ -1,0 +1,123 @@
+name: e2e
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types:
+      - labeled
+      - unlabeled
+      - opened
+      - synchronize
+  push:
+    branches:
+      - master
+
+env:
+  RUN_COMMAND: /run-e2e
+  SKIP_COMMAND: /skip-e2e
+  SKIP_LABEL: e2e/skip
+  CHECK_NAME: e2e
+
+jobs:
+  pull-request:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    name: Pull request evaluate
+    steps:
+      - uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
+        name: Enqueue e2e
+        id: create
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          sha: ${{ github.event.pull_request.head.sha }}
+          name: ${{ env.CHECK_NAME }}
+          status: queued
+
+      - uses: LouisBrunner/checks-action@6b626ffbad7cc56fd58627f774b9067e6118af23 # v2
+        name: Skip e2e
+        if: contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL)
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          sha: ${{ github.event.pull_request.head.sha }}
+          check_id: ${{ steps.create.outputs.check_id }}
+          conclusion: success
+          output: |
+            {"summary": "skipped by maintainer"}
+
+  comment:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment'
+    name: Comment evaluate
+    steps:
+      - name: Determine if e2e should run
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        id: decision
+        with:
+          script: |
+            core.setOutput('should_run', context.payload.comment?.body?.includes(context.env.RUN_COMMAND) === true)
+            core.setOutput('should_skip', context.payload.comment?.body?.includes(context.env.SKIP_COMMAND) === true)
+
+      - name: Add label to skip e2e test
+        if: steps.decision.outputs.should_skip == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.payload.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["e2e/skip"]
+            })
+
+      - name: Retrieve pull request data
+        if: steps.decision.outputs.should_run == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        id: pr_data
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.issue.number,
+            })
+            core.setOutput('ref', pr.head.ref)
+            core.setOutput('commit_sha', pr.head.sha)
+
+      - name: Trigger e2e workflow
+        if: steps.decision.outputs.should_run == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.CCLBOT_TOKEN }}
+          script: |
+            const result = await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'e2e.yml',
+              ref: context.steps.pr_data.outputs.ref,
+              inputs: {
+                debug: context.payload.comment?.body?.includes(`${context.env.RUN_COMMAND} debug`) === true,
+                'debug-pr-number': `${context.payload.issue.number}`,
+                'status-comment-id': `${context.payload.comment.id}`,
+                'status-commit-sha': context.steps.pr_data.outputs.commit_sha,
+                'status-check-name': context.env.E2E_CHECK_NAME,
+              },
+            })
+
+  push:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    name: Push evaluate
+    steps:
+      - name: Trigger e2e workflow
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.CCLBOT_TOKEN }}
+          script: |
+            const result = await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'e2e.yml',
+              ref: context.ref,
+              inputs: {},
+            })
