@@ -34,7 +34,7 @@ jobs:
         name: Enqueue e2e
         id: check
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CCLBOT_TOKEN }}
           sha: ${{ github.event.pull_request.head.sha }}
           name: ${{ env.CHECK_NAME }}
           status: queued
@@ -43,7 +43,7 @@ jobs:
         name: Skip e2e
         if: contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL)
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CCLBOT_TOKEN }}
           sha: ${{ github.event.pull_request.head.sha }}
           check_id: ${{ steps.check.outputs.check_id }}
           conclusion: success
