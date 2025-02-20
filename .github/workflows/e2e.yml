@@ -64,7 +64,9 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
     - name: E2E - Run
-      run: echo +e2e.test --E2E_PROVIDER=docker "--GIT_BRANCH=${{ github.ref_name }}"
+      run: |
+        echo +e2e.test --E2E_PROVIDER=docker "--GIT_BRANCH=${{ github.ref_name }}"
+        sleep 30
 
     - name: Debugging session - Retrieve runner public IP
       if: failure() && inputs.debug
