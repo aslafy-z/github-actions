@@ -100,7 +100,7 @@ jobs:
                 'debug-pr-number': `${context.payload.issue.number}`,
                 'status-comment-id': `${context.payload.comment.id}`,
                 'status-commit-sha': context.steps.pr_data.outputs.commit_sha,
-                'status-check-name': context.env.E2E_CHECK_NAME,
+                'status-check-name': context.env.CHECK_NAME,
               },
             })
 
@@ -121,6 +121,6 @@ jobs:
               ref: context.ref,
               inputs: {
                 'status-commit-sha': context.sha,
-                'status-check-name': context.env.E2E_CHECK_NAME,
+                'status-check-name': context.env.CHECK_NAME,
               },
             })
