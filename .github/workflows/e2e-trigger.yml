@@ -31,7 +31,7 @@ jobs:
     name: Pull request evaluate
     steps:
       - name: Set check status to pending
-        if: contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) === false
+        if: "!contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL)"
         uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
