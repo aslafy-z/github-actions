@@ -46,7 +46,7 @@ jobs:
       with:
         comment-id: ${{ inputs.status-comment-id }}
         body: |
-
+          %0A <!-- newline workaround -->
           **Update:** E2E tests are being executed. You can check the progress for [run ${{ github.run_id }}](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}).
         reactions: rocket
 
