@@ -55,8 +55,8 @@ jobs:
         id: decision
         with:
           script: |
-            core.setOutput('should_run', context.payload.comment?.body?.includes(context.env.RUN_COMMAND) === true)
-            core.setOutput('should_skip', context.payload.comment?.body?.includes(context.env.SKIP_COMMAND) === true)
+            core.setOutput('should_run', context.payload.comment?.body?.includes(process.env.RUN_COMMAND) === true)
+            core.setOutput('should_skip', context.payload.comment?.body?.includes(process.env.SKIP_COMMAND) === true)
 
       - name: Add label to skip e2e test
         if: steps.decision.outputs.should_skip == 'true'
@@ -96,11 +96,11 @@ jobs:
               workflow_id: 'e2e.yml',
               ref: context.steps.pr_data.outputs.ref,
               inputs: {
-                debug: context.payload.comment?.body?.includes(`${context.env.RUN_COMMAND} debug`) === true,
+                debug: context.payload.comment?.body?.includes(`${process.env.RUN_COMMAND} debug`) === true,
                 'debug-pr-number': `${context.payload.issue.number}`,
                 'status-comment-id': `${context.payload.comment.id}`,
                 'status-commit-sha': context.steps.pr_data.outputs.commit_sha,
-                'status-check-name': context.env.CHECK_NAME,
+                'status-check-name': process.env.CHECK_NAME,
               },
             })
 
@@ -121,6 +121,6 @@ jobs:
               ref: context.ref,
               inputs: {
                 'status-commit-sha': context.sha,
-                'status-check-name': context.env.CHECK_NAME,
+                'status-check-name': process.env.CHECK_NAME,
               },
             })
