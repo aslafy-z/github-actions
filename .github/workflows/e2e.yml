@@ -59,7 +59,7 @@ jobs:
         context: ${{ inputs.status-check-name }}
         status: pending
         description: E2E tests are running
-        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}/job/${{ github.job }}
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
 
     - name: Checkout
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -127,7 +127,7 @@ jobs:
         context: ${{ inputs.status-check-name }}
         status: success
         description: E2E tests succeeded
-        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}/job/${{ github.job }}
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
 
     - name: React to comment with failure
       uses: dkershner6/reaction-action@97ede302a1b145b3739dec3ca84a489a34ef48b5 # v2
@@ -146,4 +146,4 @@ jobs:
         context: ${{ inputs.status-check-name }}
         status: failure
         description: E2E tests failed
-        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}/job/${{ github.job }}
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
