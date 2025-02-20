@@ -51,7 +51,7 @@ jobs:
         reactions: rocket
 
     - name: Status / Update check to pending
-      if: inputs.status-commit-sha && inputs.status-check-id
+      if: inputs.status-commit-sha && inputs.status-check-name
       uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -59,7 +59,7 @@ jobs:
         context: ${{ inputs.status-check-name }}
         status: pending
         description: E2E tests are running
-        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}/job/${{ github.job }}
 
     - name: Checkout
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -67,7 +67,8 @@ jobs:
     - name: E2E - Run
       run: |
         echo +e2e.test --E2E_PROVIDER=docker "--GIT_BRANCH=${{ github.ref_name }}"
-        sleep 30
+        exit 1
+        
 
     - name: Debugging session - Retrieve runner public IP
       if: failure() && inputs.debug
@@ -126,7 +127,7 @@ jobs:
         context: ${{ inputs.status-check-name }}
         status: success
         description: E2E tests succeeded
-        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}/job/${{ github.job }}
 
     - name: React to comment with failure
       uses: dkershner6/reaction-action@97ede302a1b145b3739dec3ca84a489a34ef48b5 # v2
@@ -145,4 +146,4 @@ jobs:
         context: ${{ inputs.status-check-name }}
         status: failure
         description: E2E tests failed
-        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
+        targetUrl: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}/job/${{ github.job }}
