@@ -46,10 +46,10 @@ jobs:
       with:
         comment-id: ${{ inputs.status-comment-id }}
         body: |
-          
-          \n
+          <!-- placeholder -->
+
           ---
-          **Update:** E2E tests are being executed. You can check the progress for [run ${{ github.run_id }}](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}).
+          **Update:** See logs for [E2E tests run ${{ github.run_id }}](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}})
         reactions: rocket
 
     - name: Status / Update check to pending
