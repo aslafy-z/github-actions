@@ -67,6 +67,7 @@ jobs:
         if: steps.decision.outputs.should_skip == 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
+          github-token: ${{ secrets.CCLBOT_TOKEN }} # Allows workflows to be triggered by this action
           script: |
             github.rest.issues.addLabels({
               issue_number: context.payload.issue.number,
