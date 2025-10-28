@@ -17,7 +17,7 @@ inputs:
   wait-timeout-seconds:
     description: 'Time to wait for a reaction in seconds'
     required: false
-    default: '1800'
+    default: '3000'
   check-interval-seconds:
     description: 'Interval between reaction checks'
     required: false
