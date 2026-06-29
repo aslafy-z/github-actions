@@ -95,18 +95,21 @@ jobs:
       - name: Trigger e2e workflow
         if: steps.decision.outputs.should_run == 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        env:
+          PR_REF: ${{ steps.pr_data.outputs.ref }}
+          PR_COMMIT_SHA: ${{ steps.pr_data.outputs.commit_sha }}
         with:
           script: |
             const result = await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'e2e.yml',
-              ref: "${{ steps.pr_data.outputs.ref }}",
+              ref: process.env.PR_REF,
               inputs: {
                 debug: context.payload.comment?.body?.includes(`${process.env.RUN_COMMAND} debug`) === true,
                 'debug-pr-number': `${context.payload.issue.number}`,
                 'status-comment-id': `${context.payload.comment.id}`,
-                'status-commit-sha': "${{ steps.pr_data.outputs.commit_sha }}",
+                'status-commit-sha': process.env.PR_COMMIT_SHA,
                 'status-check-name': process.env.CHECK_NAME,
               },
             })
